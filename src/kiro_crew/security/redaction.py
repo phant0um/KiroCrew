@@ -1269,7 +1269,9 @@ CREDENTIAL_REDACTION_TAGS = (_REDACTED_CREDENTIAL_TAG, _REDACTED_ENCODED_CREDENT
 # ACCEPTED RESIDUAL: a template value made of LEGAL query bytes
 # (`?token=$TOKEN`, `?token=%s`) still matches and is redacted -- the class
 # excludes only bytes no legal query can carry, and a shape test on the value
-# would reintroduce the false-negative lever this pass exists to avoid.
+# would reintroduce the false-negative lever this pass exists to avoid. The
+# one exception is a value that starts `${` (a JS/shell placeholder, #17074):
+# a lookahead in `_TOKEN_PARAM_RE` excludes it, so stream and batch agree.
 #
 # Deliberately NOT a `_CREDENTIAL_PATTERNS` branch, for two reasons. A branch
 # replaces its WHOLE span, which would swallow the `token=` anchor this pass
@@ -1421,7 +1423,8 @@ _TOKEN_PARAM_NAME_PREFIX_RE = (
     + ")"
 )
 _TOKEN_PARAM_RE = re.compile(
-    rf"{_TOKEN_PARAM_SEP_RE}(?ai:{_TOKEN_PARAM_NAME_RE}){_TOKEN_PARAM_EQ_RE}({_TOKEN_PARAM_VALUE_CLASS}+)"
+    rf"{_TOKEN_PARAM_SEP_RE}(?ai:{_TOKEN_PARAM_NAME_RE}){_TOKEN_PARAM_EQ_RE}"
+    rf"(?!\$\{{)({_TOKEN_PARAM_VALUE_CLASS}+)"
 )
 
 # The in-progress form of the same anchor, for `StreamRedactor.feed`'s

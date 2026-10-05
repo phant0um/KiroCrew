@@ -178,7 +178,12 @@ def _url_payload_command(n: int) -> str:
 #:
 #: Raised for the read-only bash gate's refusal of variable-assigning expansions
 #: (`$[...]`, an `=` after `${`): one pattern alternative plus its reason comment.
-_PACKAGE_LINE_BUDGET = 28_428
+#:
+#: Raised for the `token_parameter` pattern's `(?!\$\{)` lookahead (a JS/shell
+#: `${...}` placeholder, #17074): one pattern line, two lines naming the
+#: exception in the pass's ACCEPTED RESIDUAL paragraph, and the StreamRedactor
+#: floor-cut step that keeps such a `$` with its `{`.
+_PACKAGE_LINE_BUDGET = 28_440
 
 #: Ceiling on any ONE file in the package. This is what the bound is really for --
 #: a package total says nothing about a single file growing back into a second

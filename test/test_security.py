@@ -1205,6 +1205,52 @@ class TestTokenParamValueRedaction:
             assert result == text, text
             assert warnings == [], text
 
+    def test_js_template_literal_placeholder_not_matched(self) -> None:
+        """A JS/shell `${...}` placeholder is a template, not a value (#17074).
+
+        `$` is a legal value byte, so `token=${` used to match the lone `$`
+        and rewrite the source line. Only a `$` directly followed by `{` is
+        skipped; any other `$`-led value still redacts."""
+        for text in (
+            "const url = `${base}?a=1&token=${encodeURIComponent(jwt)}`;",
+            'curl "https://host.example/ws?token=${TOKEN}"',
+        ):
+            result, warnings = redact_credentials(text)
+            assert result == text, text
+            assert warnings == [], text
+
+    def test_dollar_led_value_without_brace_still_redacted(self) -> None:
+        """The template skip is `${` only; `$secret` and `$VAR` keep redacting."""
+        for value in (f"${self._OPAQUE}", "$TOKEN", "$"):
+            result, _ = redact_credentials(f"?token={value}")
+            assert result == "?token=[REDACTED: credential]", value
+
+    def test_stream_js_template_literal_split_after_dollar(self) -> None:
+        """A chunk boundary between `$` and `{` still yields the template unchanged."""
+        from kiro_crew.security import StreamRedactor
+
+        redactor = StreamRedactor()
+        emitted = [
+            redactor.feed("&token=$"),
+            redactor.feed("{encodeURIComponent(jwt)}"),
+            redactor.flush(),
+        ]
+        assert "".join(emitted) == "&token=${encodeURIComponent(jwt)}"
+
+    def test_stream_js_template_literal_forced_floor_matches_batch(self) -> None:
+        """A forced 512-char floor cut near `${` gives the batch result.
+
+        The PEM anchor holds the whole buffer, so the floor cut runs its
+        complete-token repair. Size 493 puts the cut between `$` and `{`.
+        """
+        from kiro_crew.security import StreamRedactor
+
+        for size in (486, 493, 495, 504):
+            text = " &token=${" + "a" * size + " BEGIN RSA PRIVATE"
+            redactor = StreamRedactor()
+            streamed = redactor.feed(text) + redactor.flush()
+            assert streamed == redact_credentials(text)[0], size
+
     def test_value_already_caught_by_pass_1_is_byte_identical(self) -> None:
         """A pass-1-shaped value keeps pass 1's tag and single warning.
 

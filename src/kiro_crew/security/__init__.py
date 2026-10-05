@@ -654,9 +654,9 @@ class StreamRedactor:
 
         i = min(safety_cuts)
         complete_token_matches = tuple(_redaction._TOKEN_PARAM_RE.finditer(self._buf))
-        # Invariant: the complete-match crossing predicate is re-evaluated after
-        # every assignment to `i`; both Phase A and the Phase B floor call the
-        # same helper rather than letting their predicate copies drift.
+        # Invariant: Phase A and the Phase B floor call the same crossing helper
+        # rather than letting predicate copies drift. The floor's one-byte `$`
+        # step needs no re-check: a match across `i - 1` has a longer value.
         complete_token_crossing = _complete_token_match_crossing(complete_token_matches, i)
         if complete_token_crossing is not None:
             i = min(i, complete_token_crossing.start())
@@ -742,6 +742,15 @@ class StreamRedactor:
             floor_crossing = _complete_token_match_crossing(complete_token_matches, i)
             if floor_crossing is not None:
                 i = floor_crossing.end(1)
+
+            # A lone `$` value followed by `{` is a placeholder, not a token
+            # (#17074). Cut before the `$` so the commit cannot end in a bare
+            # `token=$` that the batch pass, seeing the `{`, leaves alone.
+            if self._buf.startswith("${", i - 1) and any(
+                m.end(1) == i and m.group(1) == "$"
+                for m in _redaction._TOKEN_PARAM_RE.finditer(self._buf, 0, i)
+            ):
+                i -= 1
 
             # Repair the complete-match cut first, then preserve a trailing WEAK
             # prefix if that repair crossed it. An encoded separator is at most

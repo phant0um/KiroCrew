@@ -57,7 +57,7 @@ _REFERENCE_TOKEN_PARAM_SEP_RE = rf"(?:[?&]|{_HTML_REF_AMP}|{_HTML_REF_QUEST})"
 _REFERENCE_TOKEN_PARAM_EQ_RE = rf"(?:=|{_HTML_REF_EQUALS})"
 _REFERENCE_TOKEN_PARAM_RE = re.compile(
     rf"{_REFERENCE_TOKEN_PARAM_SEP_RE}(?ai:{_TOKEN_PARAM_NAME_RE})"
-    rf"{_REFERENCE_TOKEN_PARAM_EQ_RE}({_TOKEN_PARAM_VALUE_CLASS}+)"
+    rf"{_REFERENCE_TOKEN_PARAM_EQ_RE}(?!\$\{{)({_TOKEN_PARAM_VALUE_CLASS}+)"
 )
 
 # ── Reference oracle: the implementation as it stood before the optimisation ──
@@ -351,6 +351,9 @@ def _corpus() -> list[str]:
         # then catches. Legacy-equivalent: legacy pass 3 replaces the same
         # value and pass 4 does not exist there, so outputs agree.
         f"?token={AWS_SECRET}",
+        # A `${...}` placeholder is not a pass-4 value (#17074), so the output
+        # keeps the `$` exactly as the legacy chain does.
+        "&token=${encodeURIComponent(jwt)}",
         # Percent-encoded and HTML-reference near misses stay legacy-equivalent:
         # none becomes a token-parameter delimiter after the one decode performed
         # by its owning parser stage.
